@@ -22,7 +22,6 @@ spec:
     type: realtime-service
     properties:
       name: rtdemo-gateway
-      image: healthidpuaeacr.azurecr.io/rtdemo-gateway@sha256:8887416b3e9b3f65033f42897d766d9cf72b37b0de66bf862901a88aae78085c
       language: python
       realtime: rtdemo-stream
       websocket: true
