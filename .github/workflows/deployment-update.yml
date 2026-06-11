@@ -79,6 +79,17 @@ jobs:
             
             echo "📝 Updating $service to image: $NEW_IMAGE"
             
+            # HARD-3 #170: digest-pin guard. The whole point of the commit-back is
+            # to replace the mutable :latest bootstrap placeholder with an immutable
+            # <repo>:<sha>. If the payload ever carries a :latest (or empty) tag,
+            # writing it back re-introduces the stale-digest trap, so fail loudly.
+            if [ -z "$NEW_IMAGE" ] || [ "$NEW_IMAGE" = "null" ]; then
+              echo "❌ Refusing to pin $service: empty image" >&2; exit 1
+            fi
+            case "$NEW_IMAGE" in
+              *:latest) echo "❌ Refusing to pin $service to a :latest tag ($NEW_IMAGE) — commit-back must use an immutable <repo>:<sha>" >&2; exit 1 ;;
+            esac
+            
             # Update multiple OAM file locations
             # 1. Main OAM application file
             MAIN_OAM="oam/applications/application.yaml"
@@ -100,6 +111,28 @@ jobs:
               echo "Updated image line:"
               grep "image:" "$MAIN_OAM" | head -1
               echo "✅ Updated main OAM manifest"
+
+              # HARD-3 #170: bump app.oam.dev/publishVersion in lockstep with the
+              # image re-pin. KubeVela digest-pins :latest into the FIRST Knative
+              # revision; a properties.image change alone is not always enough to
+              # force a re-render, and bumping publishVersion WITHOUT re-pinning the
+              # image reverts the rendered image to the CD :latest default. By moving
+              # both together here (keyed off the immutable source commit) the ksvc
+              # always re-renders onto the fresh digest. Add the annotation if the
+              # seeded OAM template lacks it; otherwise replace it in place.
+              PV="${SOURCE_COMMIT:-$COMMIT_SHA}"
+              if grep -q "app.oam.dev/publishVersion:" "$MAIN_OAM"; then
+                # Replace the value only (no newline in the replacement → BSD/GNU safe).
+                sed -i "s#\(app.oam.dev/publishVersion:\).*#\1 \"$PV\"#" "$MAIN_OAM"
+              elif grep -qE "^  annotations:" "$MAIN_OAM"; then
+                # Append the key under the existing metadata.annotations block (awk → no
+                # sed `\n`-in-replacement portability trap).
+                awk -v pv="$PV" '{print} /^  annotations:[[:space:]]*$/ && !d {print "    app.oam.dev/publishVersion: \"" pv "\""; d=1}' "$MAIN_OAM" > "$MAIN_OAM.tmp" && mv "$MAIN_OAM.tmp" "$MAIN_OAM"
+              else
+                # No annotations block yet — create one right after metadata.name.
+                awk -v pv="$PV" '{print} /^  name:/ && !d {print "  annotations:"; print "    app.oam.dev/publishVersion: \"" pv "\""; d=1}' "$MAIN_OAM" > "$MAIN_OAM.tmp" && mv "$MAIN_OAM.tmp" "$MAIN_OAM"
+              fi
+              echo "✅ Stamped publishVersion=$PV on $MAIN_OAM"
             fi
             
             # Update vCluster-specific OAM files
