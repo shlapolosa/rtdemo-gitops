@@ -4,7 +4,7 @@ metadata:
   name: rtdemo
   namespace: default
   annotations:
-    app.oam.dev/publishVersion: rt-gw-ct-final-v1
+    app.oam.dev/publishVersion: rt-gw-ct-final-v2
 spec:
   components:
   - name: rtdemo-stream
@@ -32,6 +32,8 @@ spec:
       produces:
       - sensor_raw
       identity: rtdemo-auth
+      environment:
+        CT_RENDER_NUDGE: '1'
     traits:
     - type: expose-api
       properties:
