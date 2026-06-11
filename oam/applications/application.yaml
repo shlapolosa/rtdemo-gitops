@@ -3,8 +3,6 @@ kind: Application
 metadata:
   name: rtdemo
   namespace: default
-  annotations:
-    app.oam.dev/publishVersion: rt-gw-pin-e1d6778-gitops
 spec:
   components:
   - name: rtdemo-stream
@@ -32,7 +30,6 @@ spec:
       produces:
       - sensor_raw
       identity: rtdemo-auth
-      image: healthidpuaeacr.azurecr.io/rtdemo-gateway:e1d6778
     traits:
     - type: expose-api
       properties:
